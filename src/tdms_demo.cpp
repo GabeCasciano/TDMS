@@ -3,7 +3,7 @@
 
 const std::string filename1 = "test/tdms_test.tdms";
 const std::string filename2 = "test/tdms_test2.tdms";
-const int dummy_sample = 100;
+const int dummy_sample = 5;
 
 TDMSWriter *test_writer;
 std::vector<double> dummy_data;
