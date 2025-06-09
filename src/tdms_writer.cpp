@@ -2,50 +2,19 @@
 // https://www.ni.com/en/support/documentation/supplemental/07/tdms-file-format-internal-structure.html
 
 #include "tdms_writer.h"
-#include <cstring>
+#include <cstdint>
+#include <ios>
 #include <stdexcept>
+#include <string>
+#include <sys/types.h>
 
-#define SAMPLE_RATE 2000
-#define WRITE_INT 5
-#define AUTO_FLUSH_THRESHOLD SAMPLE_RATE *WRITE_INT
-
-#define kTocMetaData (1L << 1)
-#define kTocRawData (1L << 3)
-#define kTocNewObjList (1L << 2)
-
-const uint32_t TDMS_TAG = 0x54444D53;
-const uint32_t TDMS_VERSION = 4713;
-
-typedef enum {
-  tdsTypeVoid,
-  tdsTypeI8,
-  tdsTypeI16,
-  tdsTypeI32,
-  tdsTypeI64,
-  tdsTypeU8,
-  tdsTypeU16,
-  tdsTypeU32,
-  tdsTypeU64,
-  tdsTypeSingleFloat,
-  tdsTypeDoubleFloat,
-  tdsTypeExtendedFloat,
-  tdsTypeSingleFloatWithUnit = 0x19,
-  tdsTypeDoubleFloatWithUnit,
-  tdsTypeExtendedFloatWithUnit,
-  tdsTypeString = 0x20,
-  tdsTypeBoolean = 0x21,
-  tdsTypeTimeStamp = 0x44,
-  tdsTypeFixedPoint = 0x4F,
-  tdsTypeComplexSingleFloat = 0x08000c,
-  tdsTypeComplexDoubleFloat = 0x10000d,
-  tdsTypeDAQmxRawData = 0xFFFFFFFF
-} tdsDataType;
-
-TDMSWriter::TDMSWriter(const std::string &filename)
-    : filename(filename), metadataWritten(false) {
+TDMSWriter::TDMSWriter(const std::string filename, const RootObj root_obj) : filename(filename){
   file.open(filename, std::ios::binary | std::ios::trunc | std::ios::out);
-  if (!file)
+
+  if(!file)
     throw std::runtime_error("Unable to open file: " + filename);
+  
+  writeSegment(root_obj);
 }
 
 TDMSWriter::~TDMSWriter() {
@@ -54,105 +23,123 @@ TDMSWriter::~TDMSWriter() {
     file.close();
 }
 
-void TDMSWriter::addChannel(const std::string &group,
-                            const std::string &channel) {
-  std::string fullPath = "/" + group + "/" + channel;
-  if (channels.count(fullPath))
-    throw std::runtime_error("Channel already exists: " + fullPath);
-  channels[fullPath] = {};
-  channelOrder.push_back(fullPath);
-}
+void TDMSWriter::writeData(){
 
-void TDMSWriter::addProperty(const std::string &objectPath,
-                             const std::string &key, const std::string &value) {
-  objectProperties[objectPath][key] = value;
-}
-
-void TDMSWriter::writeData(const std::string &group, const std::string &channel,
-                           const std::vector<double> &data) {
-  std::string fullPath = "/" + group + "/" + channel;
-  if (!channels.count(fullPath))
-    throw std::runtime_error("Channel does not exist: " + fullPath);
-  buffer[fullPath] = data;
-
-  if (buffer[fullPath].size() >= AUTO_FLUSH_THRESHOLD) {
-    flush();
-  }
-}
-
-void TDMSWriter::appendData(const std::string &group,
-                            const std::string &channel,
-                            const std::vector<double> &data) {
-  std::string fullPath = "/" + group + "/" + channel;
-  if (!channels.count(fullPath))
-    throw std::runtime_error("Channel does not exist: " + fullPath);
-  buffer[fullPath].insert(buffer[fullPath].end(), data.begin(), data.end());
-
-  if (buffer[fullPath].size() >= AUTO_FLUSH_THRESHOLD) {
-    flush();
-  }
 }
 
 void TDMSWriter::flush() {
-  uint64_t totalRawSize = 0;
-  for (const auto &ch : channelOrder)
-    totalRawSize += buffer[ch].size() * sizeof(double);
-
-  if (totalRawSize == 0)
-    return;
-
-  writeLeadIn(static_cast<uint32_t>(totalRawSize),
-              kTocMetaData | kTocRawData | kTocNewObjList);
-
-  writeUInt32(static_cast<uint32_t>(channelOrder.size()));
-  for (const auto &path : channelOrder)
-    writeMetadata(path);
-
-  for (const auto &path : channelOrder) {
-    writeRawData(buffer[path]);
-    buffer[path].clear();
-  }
+  // uint64_t totalRawSize = 0;
+  // for (const auto &ch : channelOrder)
+  //   totalRawSize += buffer[ch].size() * sizeof(double);
+  //
+  // if (totalRawSize == 0)
+  //   return;
+  //
+  // writeLeadIn(static_cast<uint32_t>(totalRawSize),
+  //             kTocMetaData | kTocRawData | kTocNewObjList);
+  //
+  // writeUInt32(static_cast<uint32_t>(channelOrder.size()));
+  // for (const auto &path : channelOrder)
+  //   writeMetadata(path);
+  //
+  // for (const auto &path : channelOrder) {
+  //   writeRawData(buffer[path]);
+  //   buffer[path].clear();
+  // }
 }
 
 void TDMSWriter::finalize() { flush(); }
 
-void TDMSWriter::writeLeadIn(uint32_t dataSize, uint32_t tocMask) {
-  file.write("TDSm", 4);
-  writeUInt32(tocMask);
-  writeUInt32(TDMS_VERSION);
-  writeUInt64(0);
-  writeUInt64(static_cast<uint64_t>(dataSize));
+void  TDMSWriter::pushData(const auto val, std::vector<char> *buffer){
+  buffer->push_back(static_cast<char>(val, sizeof(val)));
 }
 
-void TDMSWriter::writeMetadata(const std::string &path) {
-  writeUInt32(static_cast<uint32_t>(path.size()));
-  file.write(path.c_str(), path.size());
+void  TDMSWriter::pushString(const std::string val, std::vector<char> *buffer){
+  
+  uint32_t len = static_cast<uint32_t>(val.size());
 
-  writeUInt32(tdsTypeDoubleFloat);
-  writeUInt32(1); // raw data present
-  writeUInt64(buffer[path].size());
+  buffer->insert(buffer->end(),
+              reinterpret_cast<const char*>(&len),
+              reinterpret_cast<const char*>(&len) + sizeof(len));
 
-  const auto &props = objectProperties[path];
-  writeUInt32(static_cast<uint32_t>(props.size()));
+  buffer->insert(buffer->end(), val.begin(), val.end());
+}
 
-  for (const auto &[key, val] : props) {
-    writeUInt32(static_cast<uint32_t>(key.size()));
-    file.write(key.c_str(), key.size());
-    writeUInt32(tdsTypeString);
-    writeUInt32(static_cast<uint32_t>(val.size()));
-    file.write(val.c_str(), val.size());
+void  TDMSWriter::pushLeadIn(uint32_t kToc){
+  }
+
+
+/*
+ * [0] - Object Path : string 
+ * [1] - Raw Data Index : uint32_t
+ *        -> No Raw Data = 0xFFFFFFFF
+ *        -> New Raw Data :
+ *          -> Length : uint32_t 
+ *          -> DataType : (uint32_t) tdsDataType
+ *          -> Array Dims : 1 
+ *          -> Number of values : uint64_t
+ *          -> Size in bytes : uint64_t (for strings)
+ * [2] - Number of Properties
+ * [3] - Properties:
+ *          -> Name : string 
+ *          -> DataType : (uint32_t) tdsDataType
+ *          -> Value : 
+ *
+ *
+ */
+
+
+void  TDMSWriter::pushProperty(const PropertyObj prop){
+  pushString(prop.name, &meta_data_buffer);
+  pushData((uint32_t *) 0xFFFFFFFF, &meta_data_buffer);
+  pushData((uint32_t *) 1, &meta_data_buffer);
+}
+
+void  TDMSWriter::pushChannelObj(const ChannelObj channel){
+
+}
+
+void  TDMSWriter::pushGroupObj(const GroupObj group){
+  
+}
+
+void  TDMSWriter::pushRootObj(const RootObj root){
+
+  meta_obj_count = 0;
+
+  for(auto &obj : root.properties)
+    pushProperty(obj);
+  
+  meta_obj_count += root.properties.size();
+
+  for(auto &obj : root.groups){
+    meta_obj_count += obj.properties.size();
+    for(auto &prop : obj.properties)
+      pushProperty(prop);
   }
 }
 
-void TDMSWriter::writeRawData(const std::vector<double> &data) {
-  file.write(reinterpret_cast<const char *>(data.data()),
-             data.size() * sizeof(double));
-}
+void  TDMSWriter::writeSegment(const RootObj data){
+  pushRootObj(data);
+  
+  uint32_t kToc = kTocMetaData | kTocNewObjList;
 
-void TDMSWriter::writeUInt32(uint32_t val) {
-  file.write(reinterpret_cast<const char *>(&val), sizeof(val));
-}
+  if(data.groups[0].channels.size() >= 0)
+    kToc |= kTocRawData;
 
-void TDMSWriter::writeUInt64(uint64_t val) {
-  file.write(reinterpret_cast<const char *>(&val), sizeof(val));
+  file.write(reinterpret_cast<char *>(TDMS_TAG), sizeof(uint32_t));
+  file.write(kToc, sizeof(uint32_t));
+  file.write((uint64_t)TDMS_VERSION, sizeof(uint64_t));
+  file.write((uint64_t)data_buffer.size(), sizeof(uint64_t));
+  file.write((uint64_t)meta_data_buffer.size(), sizeof(uint64_t));
+
+
+   
+
+  // write leadin 
+  // write number of metaobjects aka groups
+  // write each group
+  // write the data
+  // special consideration if there is no data
+  
 }

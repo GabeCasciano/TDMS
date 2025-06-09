@@ -13,7 +13,6 @@ chan_obj = ChannelObject("TestGroup", "TestChannel", data, properties={})
 with TdmsWriter("test_npTDMS.tdms") as tdms_writer:
     tdms_writer.write_segment([root_obj, group_obj, chan_obj])
 
-    tdms_writer.write_segment([chan_obj])
 
 # Open the TDMS file
 
