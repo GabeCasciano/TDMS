@@ -2,6 +2,7 @@
 // https://www.ni.com/en/support/documentation/supplemental/07/tdms-file-format-internal-structure.html
 
 #include "tdms_writer.h"
+#include <bit>
 #include <cstdint>
 #include <ios>
 #include <stdexcept>
@@ -50,19 +51,15 @@ void TDMSWriter::flush() {
 
 void TDMSWriter::finalize() { flush(); }
 
-void  TDMSWriter::pushData(const auto val, std::vector<char> *buffer){
-  buffer->push_back(static_cast<char>(val, sizeof(val)));
+void  TDMSWriter::pushData(const auto &val, std::vector<char> &buffer){
+  buffer.push_back(std::bit_cast<uint8_t *>(val));
 }
 
-void  TDMSWriter::pushString(const std::string val, std::vector<char> *buffer){
-  
-  uint32_t len = static_cast<uint32_t>(val.size());
+void  TDMSWriter::pushString(const std::string &val, std::vector<char> &buffer){
+   
+  buffer.push_back(std::bit_cast<uint8_t *>(val.size()));
+  buffer.push_back(std::bit_cast<uint8_t *>(val));
 
-  buffer->insert(buffer->end(),
-              reinterpret_cast<const char*>(&len),
-              reinterpret_cast<const char*>(&len) + sizeof(len));
-
-  buffer->insert(buffer->end(), val.begin(), val.end());
 }
 
 void  TDMSWriter::pushLeadIn(uint32_t kToc){

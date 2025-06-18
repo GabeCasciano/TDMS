@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <cstdint>
 #include <fstream>
 #include <string>
@@ -14,6 +15,67 @@
 
 const uint32_t TDMS_TAG = 0x54444D53;
 const uint32_t TDMS_VERSION = 4713;
+
+/* Classes 
+#pragma once
+
+#include <string>
+#include <vector>
+
+// Assuming tdsDataType and tdsTypeString are defined somewhere
+enum tdsDataType {
+    tdsTypeString,
+    // Add other types as needed
+};
+
+class PropertyObj {
+public:
+    std::string name;
+    tdsDataType dType;
+
+    virtual std::vector<char> getBytes() {
+        return std::vector<char>{}; // Return an empty vector for now
+    }
+
+    virtual ~PropertyObj() = default;
+};
+
+class String_PropertyObj : public PropertyObj {
+public:
+    std::string str;
+
+    String_PropertyObj() {
+        dType = tdsTypeString;
+    }
+
+    std::vector<char> getBytes() override {
+        return std::vector<char>(str.begin(), str.end());
+    }
+};
+
+class ChannelObj {
+public:
+    std::string name;
+    std::vector<double> data;
+};
+
+class GroupObj {
+public:
+    std::string name;
+    std::vector<ChannelObj> channels;
+    std::vector<PropertyObj> properties;
+};
+
+class RootObj {
+public:
+    std::vector<PropertyObj> properties;
+    std::vector<GroupObj> groups;
+};
+
+*/
+
+
+
 
 typedef enum {
   tdsTypeVoid,
@@ -42,9 +104,18 @@ typedef enum {
 
 typedef struct{
   std::string name;
-  tdsDataType dType = tdsTypeString;
-  std::string value;
+  tdsDataType dType;
+
+  std::vector<char> getBytes(){
+    
+    return std::vector<char>;
+  };
 }PropertyObj;
+
+struct String_PropertyObj : PropertyObj{
+  tdsDataType dType = tdsTypeString;
+  std::string str;
+};
 
 typedef struct{
   std::string name;
@@ -67,6 +138,7 @@ public:
   TDMSWriter(const std::string filename, const RootObj root_obj);
   ~TDMSWriter();
   
+  void writeDataOnlySegment(const std::vector<std::vector<float>> data);
   void writeSegment(const RootObj data);
 
   void flush();
@@ -76,8 +148,8 @@ private:
 
   void writeData();
   
-  void pushString(const std::string val, std::vector<char> *buffer);
-  void pushData(const auto val, std::vector<char> *buffer);
+  void pushString(const std::string &val, std::vector<char> &buffer);
+  void pushData(const auto &val, std::vector<char> &buffer);
 
   void pushProperty(const PropertyObj prop);
   void pushRootObj(const RootObj root);
