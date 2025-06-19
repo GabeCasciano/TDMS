@@ -2,6 +2,7 @@
 // https://www.ni.com/en/support/documentation/supplemental/07/tdms-file-format-internal-structure.html
 
 #include "tdms_writer.h"
+#include <array>
 #include <bit>
 #include <cstdint>
 #include <ios>
@@ -51,18 +52,26 @@ void TDMSWriter::flush() {
 
 void TDMSWriter::finalize() { flush(); }
 
-void  TDMSWriter::pushData(const auto &val, std::vector<char> &buffer){
-  buffer.push_back(std::bit_cast<uint8_t *>(val));
+template<typename T>
+void  TDMSWriter::pushData(const T &val, std::vector<char> &buffer){
+  auto bytes = std::bit_cast<std::array<char, sizeof(T)>>(val);
+  buffer.insert(buffer.end(), bytes.begin(), bytes.end());
 }
+
 
 void  TDMSWriter::pushString(const std::string &val, std::vector<char> &buffer){
-   
-  buffer.push_back(std::bit_cast<uint8_t *>(val.size()));
-  buffer.push_back(std::bit_cast<uint8_t *>(val));
+    // Need to ensure that all strings between / and / are enclosed by ' '
+    // I could simply check if '/' exsists and replace / with '/'
+    //  I need to make sure that the first and the last are removed
+    uint32_t len = static_cast<uint32_t>(val.size());
+    auto len_bytes = std::bit_cast<std::array<char, sizeof(len)>>(len);
 
+    buffer.insert(buffer.end(), len_bytes.begin(), len_bytes.end());
+    buffer.insert(buffer.end(), val.begin(), val.end());
 }
 
-void  TDMSWriter::pushLeadIn(uint32_t kToc){
+void  TDMSWriter::pushLeadIn(uint32_t kToc, uint64_t segment_offset, uint64_t raw_data_offset){
+
   }
 
 
@@ -86,10 +95,10 @@ void  TDMSWriter::pushLeadIn(uint32_t kToc){
  */
 
 
-void  TDMSWriter::pushProperty(const PropertyObj prop){
-  pushString(prop.name, &meta_data_buffer);
-  pushData((uint32_t *) 0xFFFFFFFF, &meta_data_buffer);
-  pushData((uint32_t *) 1, &meta_data_buffer);
+void  TDMSWriter::pushProperty(const PropertyObj &prop){
+  pushString(prop.name, meta_data_buffer);
+  pushData(prop.dType, meta_data_buffer);
+  pushData(prop., meta_data_buffer);
 }
 
 void  TDMSWriter::pushChannelObj(const ChannelObj channel){
