@@ -1,12 +1,11 @@
 #pragma once
 #include <array>
 #include <bit>
-#include <cstddef>
 #include <cstdint>
 #include <fstream>
+#include <iostream>
+#include <stdexcept>
 #include <string>
-#include <type_traits>
-#include <unordered_map>
 #include <vector>
 
 #define kTocMetaData (1L << 1)     // Segment contains meta data
@@ -50,13 +49,22 @@ typedef enum {
   tdsTypeDAQmxRawData = 0xFFFFFFFF
 } tdsDataType;
 
-std::vector<char> string_to_bytes(const std::string &str) {
-  auto len = static_cast<uint32_t>(str.length());
+std::vector<char> string_to_bytes(std::string value) {
+  auto len = static_cast<uint32_t>(value.length());
   auto _b = std::bit_cast<std::array<char, sizeof(uint32_t)>>(len);
 
   std::vector<char> bytes;
   bytes.insert(bytes.end(), _b.begin(), _b.end());
   return bytes;
+}
+
+std::vector<char> string_to_bytes(void *value) {
+  auto str = *reinterpret_cast<std::string *>(value);
+  return string_to_bytes(str);
+}
+
+template <typename T> std::array<char, sizeof(T)> data_to_bytes(void *v) {
+  return std::bit_cast<std::array<char, sizeof(T)>>(*reinterpret_cast<T *>(v));
 }
 
 class PropertyObj {
@@ -88,49 +96,45 @@ public:
       bytes.push_back(*reinterpret_cast<char *>(value));
       break;
     case tdsDataType::tdsTypeI16: {
-      auto v = *reinterpret_cast<int16_t *>(value);
-      auto b = std::bit_cast<std::array<char, sizeof(int16_t)>>(v);
+      auto b = data_to_bytes<int16_t>(value);
       bytes.insert(bytes.end(), b.begin(), b.end());
       break;
     }
     case tdsDataType::tdsTypeU16: {
-      auto v = *reinterpret_cast<uint16_t *>(value);
-      auto b = std::bit_cast<std::array<char, sizeof(uint16_t)>>(v);
+      auto b = data_to_bytes<uint16_t>(value);
       bytes.insert(bytes.end(), b.begin(), b.end());
       break;
     }
     case tdsDataType::tdsTypeI32: {
-      auto v = *reinterpret_cast<int32_t *>(value);
-      auto b = std::bit_cast<std::array<char, sizeof(int32_t)>>(v);
+      auto b = data_to_bytes<int32_t>(value);
       bytes.insert(bytes.end(), b.begin(), b.end());
       break;
     }
     case tdsDataType::tdsTypeU32: {
-      auto v = *reinterpret_cast<uint32_t *>(value);
-      auto b = std::bit_cast<std::array<char, sizeof(uint32_t)>>(v);
+      auto b = data_to_bytes<uint32_t>(value);
       bytes.insert(bytes.end(), b.begin(), b.end());
       break;
     }
     case tdsDataType::tdsTypeSingleFloat:
     case tdsDataType::tdsTypeSingleFloatWithUnit: {
-      auto v = *reinterpret_cast<float *>(value);
-      auto b = std::bit_cast<std::array<char, sizeof(float)>>(v);
+      auto b = data_to_bytes<float>(value);
       bytes.insert(bytes.end(), b.begin(), b.end());
       break;
     }
     case tdsDataType::tdsTypeDoubleFloat:
     case tdsDataType::tdsTypeDoubleFloatWithUnit: {
-      auto v = *reinterpret_cast<double *>(value);
-      auto b = std::bit_cast<std::array<char, sizeof(double)>>(v);
+      auto b = data_to_bytes<double>(value);
       bytes.insert(bytes.end(), b.begin(), b.end());
+      break;
     }
     case tdsDataType::tdsTypeString: {
-      auto str = *reinterpret_cast<std::string *>(value);
-      auto str_bytes = string_to_bytes(str);
-      bytes.insert(bytes.end(), str_bytes.begin(), str_bytes.end());
+      auto str = string_to_bytes(value);
+      bytes.insert(bytes.end(), str.begin(), str.end());
+      break;
     }
     default:
-      break;
+      throw std::runtime_error(
+          "TDMS Writer Error, Unexpected datatype and value");
     }
   }
 
