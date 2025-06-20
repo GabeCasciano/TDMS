@@ -123,4 +123,6 @@
 - Tried to OOP a little bit 
 - Templates are interesting 
 
+- BudyGPT thinks I should use a base case that has just bytes or whatever, and then inherit that into a the ChannlObj.
+- Group can then reference a unique pointer of the base class which is not templated.
 
