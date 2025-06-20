@@ -126,3 +126,13 @@
 - BudyGPT thinks I should use a base case that has just bytes or whatever, and then inherit that into a the ChannlObj.
 - Group can then reference a unique pointer of the base class which is not templated.
 
+## 06/20/2025
+- Worked on some cleaning up and some helpers to standarize interaction and serialization 
+- Need to finish the binary layout of groups and files 
+- Need to figure out where to include the Lead In 
+- Need to TEST! 
+- Close! 
+
+- Once this is done I can make a TDMS daemon that listens to specific mqtt topics and has convertors 
+- I will need to create a datastructure for serialization 
+

@@ -24,6 +24,8 @@
             // is always little-endian.
 #define kTocNewObjList (1L << 2)
 
+namespace TDMS {
+
 const uint32_t TDMS_TAG = 0x54444D53;
 const uint32_t TDMS_VERSION = 4713;
 
@@ -31,47 +33,52 @@ const uint32_t NO_DATA = 0xFFFFFFFF;
 const uint32_t DUPLICATE_DATA = 0x00000000;
 const uint32_t ARRAY_DIMENSION = 1;
 
-typedef enum {
-  tdsTypeVoid,
-  tdsTypeI8,
-  tdsTypeI16,
-  tdsTypeI32,
-  tdsTypeI64,
-  tdsTypeU8,
-  tdsTypeU16,
-  tdsTypeU32,
-  tdsTypeU64,
-  tdsTypeSingleFloat,
-  tdsTypeDoubleFloat,
-  tdsTypeExtendedFloat,
+typedef enum tdsDataType {
+  tdsTypeVoid = 0x00,
+  tdsTypeI8 = 0x01,            // int8_t
+  tdsTypeI16 = 0x02,           // int16_t
+  tdsTypeI32 = 0x03,           // int32_t
+  tdsTypeI64 = 0x04,           // int64_t
+  tdsTypeU8 = 0x05,            // uint8_t
+  tdsTypeU16 = 0x06,           // uint16_t
+  tdsTypeU32 = 0x07,           // uint32_t
+  tdsTypeU64 = 0x08,           // uint64_t
+  tdsTypeSingleFloat = 0x09,   // float
+  tdsTypeDoubleFloat = 0x0A,   // double
+  tdsTypeExtendedFloat = 0x0B, // long double (not always supported)
   tdsTypeSingleFloatWithUnit = 0x19,
-  tdsTypeDoubleFloatWithUnit,
-  tdsTypeExtendedFloatWithUnit,
-  tdsTypeString = 0x20,
-  tdsTypeBoolean = 0x21,
-  tdsTypeTimeStamp = 0x44,
+  tdsTypeDoubleFloatWithUnit = 0x1A,
+  tdsTypeString = 0x20,  // Length-prefixed UTF-8 string
+  tdsTypeBoolean = 0x21, // uint8_t 0=false, 1=true
+  tdsTypeTimeStamp =
+      0x44, // Two int64_t values (seconds and fractional seconds)
   tdsTypeFixedPoint = 0x4F,
   tdsTypeComplexSingleFloat = 0x08000c,
   tdsTypeComplexDoubleFloat = 0x10000d,
   tdsTypeDAQmxRawData = 0xFFFFFFFF
 } tdsDataType;
 
-std::vector<char> string_to_bytes(std::string value) {
+std::vector<uint8_t> string_to_bytes(std::string value) {
   auto len = static_cast<uint32_t>(value.length());
-  auto _b = std::bit_cast<std::array<char, sizeof(uint32_t)>>(len);
+  auto _b = std::bit_cast<std::array<uint8_t, sizeof(uint32_t)>>(len);
 
-  std::vector<char> bytes;
+  std::vector<uint8_t> bytes;
   bytes.insert(bytes.end(), _b.begin(), _b.end());
   return bytes;
 }
 
-std::vector<char> string_to_bytes(void *value) {
-  auto str = *reinterpret_cast<std::string *>(value);
-  return string_to_bytes(str);
+template <typename T> std::array<uint8_t, sizeof(T)> data_to_bytes(void *v) {
+  return std::bit_cast<std::array<uint8_t, sizeof(T)>>(
+      *reinterpret_cast<T *>(v));
 }
 
-template <typename T> std::array<char, sizeof(T)> data_to_bytes(void *v) {
-  return std::bit_cast<std::array<char, sizeof(T)>>(*reinterpret_cast<T *>(v));
+void push_vec(std::vector<uint8_t> &dest, std::vector<uint8_t> &src) {
+  dest.insert(dest.end(), src.begin(), src.end());
+}
+
+template <std::size_t N>
+void push_vec(std::vector<uint8_t> &dest, const std::array<uint8_t, N> &src) {
+  dest.insert(dest.end(), src.begin(), src.end());
 }
 
 class PropertyObj {
@@ -79,20 +86,18 @@ public:
   std::string name;
   tdsDataType dType;
   void *value;
-  std::vector<char> bytes;
+  std::vector<uint8_t> bytes;
 
   PropertyObj(const std::string name, const tdsDataType dType, void *value)
       : name(name), dType(dType), value(value) {
 
     // using string to bytes helper convert name to correct format
     auto name_str = string_to_bytes(name);
-    // insert it
-    bytes.insert(bytes.end(), name_str.begin(), name_str.end());
+    push_vec(bytes, name_str);
 
     // preapre the data type uint32_t
-    auto dt = std::bit_cast<std::array<char, sizeof(uint32_t)>>(dType);
-    // insert it
-    bytes.insert(bytes.end(), dt.begin(), dt.end());
+    auto dt = data_to_bytes<uint32_t>((void *)&dType);
+    push_vec(bytes, dt);
 
     switch (dType) {
     case tdsDataType::tdsTypeBoolean:
@@ -104,39 +109,34 @@ public:
       break;
     case tdsDataType::tdsTypeI16: {
       auto b = data_to_bytes<int16_t>(value);
-      bytes.insert(bytes.end(), b.begin(), b.end());
+      push_vec(bytes, b);
       break;
     }
     case tdsDataType::tdsTypeU16: {
       auto b = data_to_bytes<uint16_t>(value);
-      bytes.insert(bytes.end(), b.begin(), b.end());
+      push_vec(bytes, b);
       break;
     }
     case tdsDataType::tdsTypeI32: {
       auto b = data_to_bytes<int32_t>(value);
-      bytes.insert(bytes.end(), b.begin(), b.end());
+      push_vec(bytes, b);
       break;
     }
     case tdsDataType::tdsTypeU32: {
       auto b = data_to_bytes<uint32_t>(value);
-      bytes.insert(bytes.end(), b.begin(), b.end());
+      push_vec(bytes, b);
       break;
     }
     case tdsDataType::tdsTypeSingleFloat:
     case tdsDataType::tdsTypeSingleFloatWithUnit: {
       auto b = data_to_bytes<float>(value);
-      bytes.insert(bytes.end(), b.begin(), b.end());
+      push_vec(bytes, b);
       break;
     }
     case tdsDataType::tdsTypeDoubleFloat:
     case tdsDataType::tdsTypeDoubleFloatWithUnit: {
       auto b = data_to_bytes<double>(value);
-      bytes.insert(bytes.end(), b.begin(), b.end());
-      break;
-    }
-    case tdsDataType::tdsTypeString: {
-      auto str = string_to_bytes(value);
-      bytes.insert(bytes.end(), str.begin(), str.end());
+      push_vec(bytes, b);
       break;
     }
     default:
@@ -145,7 +145,21 @@ public:
     }
   }
 
-  std::vector<char> getBytes() { return bytes; };
+  PropertyObj(const std::string name, const std::string value) : name(name) {
+    // using string to bytes helper convert name to correct format
+    auto name_str = string_to_bytes(name);
+    push_vec(bytes, name_str);
+
+    // preapre the data type uint32_t
+    auto dt =
+        std::bit_cast<std::array<uint8_t, sizeof(uint32_t)>>(tdsTypeString);
+    push_vec(bytes, dt);
+
+    auto value_str = string_to_bytes(value);
+    push_vec(bytes, value_str);
+  }
+
+  std::vector<uint8_t> getBytes() { return bytes; };
 };
 
 template <typename T> class RawDataObj {
@@ -181,15 +195,15 @@ public:
 
     // Convert and insert the path name
     auto pb = getPathBytes();
-    bytes.insert(bytes.end(), pb.begin(), pb.end());
+    push_vec(bytes, pb);
 
     // Convert and insert the no data designator
     auto db = data_to_bytes<uint32_t>((void *)&NO_DATA);
-    bytes.insert(bytes.end(), db.begin(), db.end());
+    push_vec(bytes, db);
 
     // Convert and instert the number of properties
     auto propb = getPropertiesBytes();
-    bytes.insert(bytes.end(), propb.begin(), propb.end());
+    push_vec(bytes, propb);
   }
 
   std::vector<uint8_t> getPathBytes() {
@@ -219,41 +233,24 @@ public:
 
 template <typename T> class ChannelObj : TDMSObj {
 public:
-  std::string path;
-  std::vector<PropertyObj> properties;
   std::vector<T> data;
 
   ChannelObj(std::string path, std::vector<PropertyObj> properties)
-      : path(path), properties(properties) {
-    TDMSObj(path, properties);
-  }
-  ChannelObj(std::string path, std::vector<T> data) : path(path), data(data) {
-    // convert and insert the path
-    auto pb = TDMSObj::getPathBytes();
-    bytes.insert(bytes.end(), pb.begin(), pb.end());
-
-    // convert and insert the raw data index
-    auto db = getRawDataIndex();
-    bytes.insert(bytes.end(), db.begin(), db.end());
-
-    // convert and insert no properties
-    auto propb = TDMSObj::getPropertiesBytes();
-    bytes.insert(bytes.end(), propb.begin(), propb.end());
-  }
+      : TDMSObj(path, properties) {}
   ChannelObj(std::string path, std::vector<T> data,
              std::vector<PropertyObj> properties)
-      : path(path), data(data), properties(properties) {
+      : TDMSObj(path, properties), data(data) {
     // convert and insert the path
     auto pb = TDMSObj::getPathBytes();
-    bytes.insert(bytes.end(), pb.begin(), pb.end());
+    push_vec(bytes, pb);
 
     // convert and insert the raw data index
     auto db = getRawDataIndex();
-    bytes.insert(bytes.end(), db.begin(), db.end());
+    push_vec(bytes, db);
 
     // convert and insert no properties
     auto propb = TDMSObj::getPropertiesBytes();
-    bytes.insert(bytes.end(), propb.begin(), propb.end());
+    push_vec(bytes, propb);
   }
 
   std::vector<uint8_t> getRawDataIndex() {
@@ -263,7 +260,7 @@ public:
     auto tb = data_to_bytes<uint32_t>((void *)&temp);
 
     std::vector<uint8_t> b;
-    b.insert(b.end(), tb.begin(), tb.end());
+    push_vec(b, tb);
 
     bool is_string = false;
 
@@ -291,16 +288,16 @@ public:
 
     // write the data type
     auto db = data_to_bytes<uint32_t>((void *)&temp);
-    b.insert(b.end(), db.begin(), db.end());
+    push_vec(b, db);
 
     // get the array dimension as bytes
     auto adb = data_to_bytes<uint32_t>((void *)&ARRAY_DIMENSION);
-    b.insert(b.end(), adb.begin(), adb.end());
+    push_vec(b, adb);
 
     // get the number of values and insert
     uint64_t nv = data.size();
     auto nvb = data_to_bytes<uint64_t>((void *)nv);
-    b.insert(b.end(), nvb.begin(), nvb.end());
+    push_vec(b, nvb);
 
     return b;
   }
@@ -308,17 +305,22 @@ public:
   std::vector<uint8_t> getBytes() { return bytes; }
 };
 
-template <typename T> class GroupObj {
+template <typename T> class GroupObj : TDMSObj {
 public:
-  std::string path;
   std::vector<ChannelObj<T>> channels;
-  std::vector<PropertyObj> properties;
+
+  GroupObj(std::string path, std::vector<PropertyObj> properties,
+           std::vector<ChannelObj<T>> channels)
+      : TDMSObj(path, properties), channels(channels) {
+    auto pb = getPathBytes();
+    push_vec(bytes, pb);
+  }
 };
 
 class FileObj {
 public:
   std::vector<PropertyObj> properties;
-  std::vector<GroupObj> groups;
+  std::vector<TDMSObj> groups;
 };
 
 class TDMSWriter {
@@ -326,7 +328,6 @@ public:
   TDMSWriter(const std::string filename, const FileObj root_obj);
   ~TDMSWriter();
 
-  void writeDataOnlySegment(const std::vector<std::vector<float>> data);
   void writeSegment(const FileObj data);
 
   void flush();
@@ -335,13 +336,13 @@ public:
 private:
   void writeData();
 
-  void pushString(const std::string &val, std::vector<char> &buffer);
-  void pushData(const auto &val, std::vector<char> &buffer);
+  void pushString(const std::string &val, std::vector<uint8_t> &buffer);
+  void pushData(const auto &val, std::vector<uint8_t> &buffer);
 
   void pushProperty(const PropertyObj prop);
   void pushFileObj(const FileObj root);
-  void pushGroupObj(const GroupObj group);
-  void pushChannelObj(const ChannelObj channel);
+  void pushGroupObj(const TDMSObj group);
+  void pushChannelObj(const TDMSObj channel);
 
   std::vector<char> meta_data_buffer, data_buffer;
   uint32_t meta_obj_count = 0;
@@ -349,3 +350,5 @@ private:
   std::ofstream file;
   std::string filename;
 };
+
+} // namespace TDMS
