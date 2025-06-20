@@ -1,11 +1,14 @@
 #pragma once
 #include <array>
 #include <bit>
+#include <cstddef>
 #include <cstdint>
+#include <cwchar>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <sys/types.h>
 #include <vector>
 
 #define kTocMetaData (1L << 1)     // Segment contains meta data
@@ -23,6 +26,10 @@
 
 const uint32_t TDMS_TAG = 0x54444D53;
 const uint32_t TDMS_VERSION = 4713;
+
+const uint32_t NO_DATA = 0xFFFFFFFF;
+const uint32_t DUPLICATE_DATA = 0x00000000;
+const uint32_t ARRAY_DIMENSION = 1;
 
 typedef enum {
   tdsTypeVoid,
@@ -141,17 +148,170 @@ public:
   std::vector<char> getBytes() { return bytes; };
 };
 
-class ChannelObj {
+template <typename T> class RawDataObj {
 public:
-  std::string name;
-  std::vector<PropertyObj> properties;
-  std::vector<double> raw_data;
+  std::vector<T> raw_data;
 };
 
-class GroupObj {
+class TDMSObj {
 public:
-  std::string name;
-  std::vector<ChannelObj> channels;
+  std::string path;
+  std::vector<PropertyObj> properties;
+  std::vector<uint8_t> bytes;
+
+  /* The binary layour for a TDMS object is as follows
+   *
+   * Object Path : string
+   * Raw Data Index :
+   *    Length : uint32_t
+   *    Data Type : uint32_t
+   *    Array Dim : uint32_t always value 1
+   *    Numbre of Values : uint64_t
+   *    Size in Bytes : uint64_t
+   * Number of Properties : uint32_t
+   * Properties
+   *    Name : string
+   *    Data Type : uint32_t
+   *    Value : dType
+   */
+  TDMSObj(std::string path, std::vector<PropertyObj> properties)
+      : path(path), properties(properties) {
+
+    // To-do: need to make sure to convert /group/... to /'group'/...
+
+    // Convert and insert the path name
+    auto pb = getPathBytes();
+    bytes.insert(bytes.end(), pb.begin(), pb.end());
+
+    // Convert and insert the no data designator
+    auto db = data_to_bytes<uint32_t>((void *)&NO_DATA);
+    bytes.insert(bytes.end(), db.begin(), db.end());
+
+    // Convert and instert the number of properties
+    auto propb = getPropertiesBytes();
+    bytes.insert(bytes.end(), propb.begin(), propb.end());
+  }
+
+  std::vector<uint8_t> getPathBytes() {
+    uint32_t plen = path.length();
+    auto plb = data_to_bytes<uint32_t>((void *)&plen);
+    auto pb = string_to_bytes(path);
+
+    std::vector<uint8_t> b;
+    b.insert(b.end(), plb.begin(), plb.end());
+    b.insert(b.end(), pb.begin(), pb.end());
+    return b;
+  };
+  std::vector<uint8_t> getPropertiesBytes() {
+    uint32_t pCount = properties.size();
+    auto pcb = data_to_bytes<uint32_t>((void *)&pCount);
+    std::vector<uint8_t> b;
+    b.insert(b.end(), pcb.begin(), pcb.end());
+
+    for (PropertyObj &prop : properties) {
+      auto prb = prop.getBytes();
+      b.insert(b.end(), prb.begin(), prb.end());
+    }
+    return b;
+  };
+  std::vector<uint8_t> getBytes() { return bytes; }
+};
+
+template <typename T> class ChannelObj : TDMSObj {
+public:
+  std::string path;
+  std::vector<PropertyObj> properties;
+  std::vector<T> data;
+
+  ChannelObj(std::string path, std::vector<PropertyObj> properties)
+      : path(path), properties(properties) {
+    TDMSObj(path, properties);
+  }
+  ChannelObj(std::string path, std::vector<T> data) : path(path), data(data) {
+    // convert and insert the path
+    auto pb = TDMSObj::getPathBytes();
+    bytes.insert(bytes.end(), pb.begin(), pb.end());
+
+    // convert and insert the raw data index
+    auto db = getRawDataIndex();
+    bytes.insert(bytes.end(), db.begin(), db.end());
+
+    // convert and insert no properties
+    auto propb = TDMSObj::getPropertiesBytes();
+    bytes.insert(bytes.end(), propb.begin(), propb.end());
+  }
+  ChannelObj(std::string path, std::vector<T> data,
+             std::vector<PropertyObj> properties)
+      : path(path), data(data), properties(properties) {
+    // convert and insert the path
+    auto pb = TDMSObj::getPathBytes();
+    bytes.insert(bytes.end(), pb.begin(), pb.end());
+
+    // convert and insert the raw data index
+    auto db = getRawDataIndex();
+    bytes.insert(bytes.end(), db.begin(), db.end());
+
+    // convert and insert no properties
+    auto propb = TDMSObj::getPropertiesBytes();
+    bytes.insert(bytes.end(), propb.begin(), propb.end());
+  }
+
+  std::vector<uint8_t> getRawDataIndex() {
+
+    // The overall length of the index
+    uint32_t temp = 20; // always unless string
+    auto tb = data_to_bytes<uint32_t>((void *)&temp);
+
+    std::vector<uint8_t> b;
+    b.insert(b.end(), tb.begin(), tb.end());
+
+    bool is_string = false;
+
+    // determine what data type
+    if constexpr (std::is_same_v<T, uint8_t>)
+      temp = static_cast<uint32_t>(tdsTypeU8);
+    else if constexpr (std::is_same_v<T, int8_t>)
+      temp = static_cast<uint32_t>(tdsTypeI8);
+    else if constexpr (std::is_same_v<T, uint16_t>)
+      temp = static_cast<uint32_t>(tdsTypeU16);
+    else if constexpr (std::is_same_v<T, int16_t>)
+      temp = static_cast<uint32_t>(tdsTypeI16);
+    else if constexpr (std::is_same_v<T, uint32_t>)
+      temp = static_cast<uint32_t>(tdsTypeU32);
+    else if constexpr (std::is_same_v<T, int32_t>)
+      temp = static_cast<uint32_t>(tdsTypeI32);
+    else if constexpr (std::is_same_v<T, float>)
+      temp = static_cast<uint32_t>(tdsTypeSingleFloat);
+    else if constexpr (std::is_same_v<T, double>)
+      temp = static_cast<uint32_t>(tdsTypeDoubleFloat);
+    else if constexpr (std::is_same_v<T, std::string>) {
+      temp = static_cast<uint32_t>(tdsTypeString);
+      is_string = true; // need to do something with this
+    }
+
+    // write the data type
+    auto db = data_to_bytes<uint32_t>((void *)&temp);
+    b.insert(b.end(), db.begin(), db.end());
+
+    // get the array dimension as bytes
+    auto adb = data_to_bytes<uint32_t>((void *)&ARRAY_DIMENSION);
+    b.insert(b.end(), adb.begin(), adb.end());
+
+    // get the number of values and insert
+    uint64_t nv = data.size();
+    auto nvb = data_to_bytes<uint64_t>((void *)nv);
+    b.insert(b.end(), nvb.begin(), nvb.end());
+
+    return b;
+  }
+
+  std::vector<uint8_t> getBytes() { return bytes; }
+};
+
+template <typename T> class GroupObj {
+public:
+  std::string path;
+  std::vector<ChannelObj<T>> channels;
   std::vector<PropertyObj> properties;
 };
 

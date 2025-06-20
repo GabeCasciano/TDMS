@@ -64,7 +64,6 @@
 - Example:
 
 | Offset | Hex | Desc. |
-
 | ------ | ------ | ----- |
 | 4 | `54 44 53 6D` | "TDSm" tag |
 | 8 | `0E 00 00 00` | ToC mask `0x1110` (seg. contains: obj list, meta data, raw data) |
@@ -110,13 +109,18 @@
         - **Data type** (`tdsDataType` as `uint32_t`)
         - **Array Dimension** only for TDMS v2.0 (`uint32_t`)
         - **Number of Values** (`uint64_t`)
-        - **Total Size in Bytes** (`uint64_t`)
+        - **Total Size in Bytes** (`uint64_t`) only stored for string
         - If there is no raw data store (`0xFFFFFFFF`)
         - If there is duplicate data from the last segment write (`0x00000000`)
     - **Number of Properties** (`uint32_t`)
     - **Properties**
         - **Name** (`String`)
         - **Data Type** (`tdsDataType` as `uint32_t`)
+        - **Value** (Data Type)
 
+## 06/20/2025
+- Worked on some binary conversion stuff for properties, meta data like channels 
+- Tried to OOP a little bit 
+- Templates are interesting 
 
 
