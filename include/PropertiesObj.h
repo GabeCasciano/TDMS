@@ -8,15 +8,23 @@
 
 namespace TDMS {
 
-class PropertyObj {
+class BasePropertyObj { 
 public:
   std::string name;
   tdsDataType dType;
-  void *value;
-  std::vector<char> bytes;
+  std::vector<uint8_t> bytes;
 
-  PropertyObj(const std::string name, const tdsDataType dType, void *value);
-  std::vector<char> getBytes() { return bytes; };
+  BasePropertyObj(std::string name);
+  virtual std::vector<uint8_t> getBytes() { return bytes; };
+};
+
+template<typename T> class PropertyObj : BasePropertyObj{
+public:
+  T value;
+
+  PropertyObj(std::string name, T value);
+  std::vector<uint8_t> getBytes(){ return bytes;}
+
 };
 
 } // namespace TDMS
