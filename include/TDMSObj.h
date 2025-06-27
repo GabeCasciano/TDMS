@@ -11,7 +11,7 @@ namespace TDMS {
 class TDMSObj {
 public:
   std::string path;
-  std::vector<PropertyObj> properties;
+  std::vector<BasePropertyObj> properties;
   std::vector<uint8_t> bytes;
 
   /* The binary layour for a TDMS object is as follows
@@ -29,7 +29,7 @@ public:
    *    Data Type : uint32_t
    *    Value : dType
    */
-  TDMSObj(std::string path, std::vector<PropertyObj> properties)
+  TDMSObj(std::string path, std::vector<BasePropertyObj> properties)
       : path(path), properties(properties) {
 
     // To-do: need to make sure to convert /group/... to /'group'/...
@@ -39,7 +39,7 @@ public:
     bytes.insert(bytes.end(), pb.begin(), pb.end());
 
     // Convert and insert the no data designator
-    auto db = data_to_bytes<uint32_t>((void *)&NO_DATA);
+    auto db = data_to_bytes<uint32_t>(NO_DATA);
     bytes.insert(bytes.end(), db.begin(), db.end());
 
     // Convert and instert the number of properties
@@ -49,7 +49,7 @@ public:
 
   std::vector<uint8_t> getPathBytes() {
     uint32_t plen = path.length();
-    auto plb = data_to_bytes<uint32_t>((void *)&plen);
+    auto plb = data_to_bytes<uint32_t>(plen);
     auto pb = string_to_bytes(path);
 
     std::vector<uint8_t> b;
@@ -59,11 +59,11 @@ public:
   };
   std::vector<uint8_t> getPropertiesBytes() {
     uint32_t pCount = properties.size();
-    auto pcb = data_to_bytes<uint32_t>((void *)&pCount);
+    auto pcb = data_to_bytes<uint32_t>(pCount);
     std::vector<uint8_t> b;
     b.insert(b.end(), pcb.begin(), pcb.end());
 
-    for (PropertyObj &prop : properties) {
+    for (BasePropertyObj &prop : properties) {
       auto prb = prop.getBytes();
       b.insert(b.end(), prb.begin(), prb.end());
     }

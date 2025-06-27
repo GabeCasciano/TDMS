@@ -9,29 +9,33 @@
 
 namespace TDMS {
 
-template <typename T> class ChannelObj : TDMSObj {
+class BaseChannelObj : TDMSObj {
 public:
-  std::vector<T> data;
-
-  ChannelObj(std::string path, std::vector<PropertyObj> properties)
-      : TDMSObj(path, properties) {}
-  ChannelObj(std::string path, std::vector<T> data,
-             std::vector<PropertyObj> properties)
-      : TDMSObj(path, properties), data(data) {
-    // convert and insert the path
+  BaseChannelObj(std::string path, std::vector<BasePropertyObj> properties)
+      : TDMSObj(path, properties) {
     auto pb = TDMSObj::getPathBytes();
     bytes.insert(bytes.end(), pb.begin(), pb.end());
-
-    // convert and insert the raw data index
-    auto db = getRawDataIndex();
-    bytes.insert(bytes.end(), db.begin(), db.end());
 
     // convert and insert no properties
     auto propb = TDMSObj::getPropertiesBytes();
     bytes.insert(bytes.end(), propb.begin(), propb.end());
   }
 
-  void addData(std::vector<T> data);
+  template<typename T> void addData(std::vector<T> data){
+    this->_addData(reinterpret_cast<void *>(data), data.size(), sizeof(T));    
+  };
+
+  std::vector<uint8_t> getBytes() { return bytes; }
+
+protected:
+  virtual std::vector<uint8_t> getRawDataIndex();
+  virtual void _addData(void * data, uint32_t count, size_t size);
+};
+
+template <typename T>
+class ChannelObj : BaseChannelObj{
+
+  ChannelObj(std::string path, std::vector<BasePropertyObj> properties);
 
   std::vector<uint8_t> getRawDataIndex() {
 
@@ -82,7 +86,8 @@ public:
     return b;
   }
 
-  std::vector<uint8_t> getBytes() { return bytes; }
+  private:
+  std::vector<T> data;
 };
 
 } // namespace TDMS

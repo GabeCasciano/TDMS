@@ -15,6 +15,7 @@ public:
   std::vector<uint8_t> bytes;
 
   BasePropertyObj(std::string name);
+  ~BasePropertyObj();
   virtual std::vector<uint8_t> getBytes() { return bytes; };
 };
 

@@ -12,10 +12,11 @@
 
 namespace TDMS {
 
-class FileObj {
+class FileObj : TDMSObj{
 public:
-  std::vector<PropertyObj> properties;
   std::vector<GroupObj> groups;
+
+  FileObj(GroupObj groups, BasePropertyObj properties);
 };
 
 } // namespace TDMS
