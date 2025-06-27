@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <memory>
 
 #include "ChannelObj.h"
 #include "PropertiesObj.h"
@@ -13,7 +14,7 @@ namespace TDMS {
 
 class GroupObj : TDMSObj {
 public:
-  std::vector<TDMSObj> channels;
+  std::vector<std::unique_ptr<TDMSObj>> channels;
 };
 
 } // namespace TDMS

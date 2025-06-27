@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <memory>
 
 #include "PropertiesObj.h"
 #include "TDMSUtils.h"
@@ -11,7 +12,7 @@ namespace TDMS {
 class TDMSObj {
 public:
   std::string path;
-  std::vector<BasePropertyObj> properties;
+  std::vector<std::unique_ptr<BasePropertyObj>> properties;
   std::vector<uint8_t> bytes;
 
   /* The binary layour for a TDMS object is as follows
@@ -29,8 +30,8 @@ public:
    *    Data Type : uint32_t
    *    Value : dType
    */
-  TDMSObj(std::string path, std::vector<BasePropertyObj> properties)
-      : path(path), properties(properties) {
+  TDMSObj(std::string path, std::vector<std::unique_ptr<BasePropertyObj>> properties)
+      : path(path), properties(std::move(properties)) {
 
     // To-do: need to make sure to convert /group/... to /'group'/...
 
@@ -63,8 +64,8 @@ public:
     std::vector<uint8_t> b;
     b.insert(b.end(), pcb.begin(), pcb.end());
 
-    for (BasePropertyObj &prop : properties) {
-      auto prb = prop.getBytes();
+    for(int i = 0; i < properties.size(); i++){
+      auto prb = properties[i]->getBytes();
       b.insert(b.end(), prb.begin(), prb.end());
     }
     return b;

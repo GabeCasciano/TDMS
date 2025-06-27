@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <memory>
 
 #include "PropertiesObj.h"
 #include "TDMSObj.h"
@@ -11,8 +12,8 @@ namespace TDMS {
 
 class BaseChannelObj : TDMSObj {
 public:
-  BaseChannelObj(std::string path, std::vector<BasePropertyObj> properties)
-      : TDMSObj(path, properties) {
+  BaseChannelObj(std::string path, std::vector<std::unique_ptr<BasePropertyObj>> properties)
+      : TDMSObj(path, std::move(properties)) {
     auto pb = TDMSObj::getPathBytes();
     bytes.insert(bytes.end(), pb.begin(), pb.end());
 
