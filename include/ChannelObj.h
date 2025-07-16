@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 #include <memory>
 
@@ -23,21 +24,23 @@ public:
     bytes.insert(bytes.end(), propb.begin(), propb.end());
   }
 
-  template<typename T> void addData(std::vector<T> data){
-    this->_addData(reinterpret_cast<void *>(data), data.size(), sizeof(T));    
-  };
-
+  // I'm assuming this is the correct way to do this
+  virtual void addData(void* data);
   std::vector<char> getBytes() { return bytes; }
 
 protected:
   virtual std::vector<uint8_t> getRawDataIndex();
-  virtual void _addData(void * data, uint32_t count, size_t size);
 };
 
 template <typename T>
 class ChannelObj : public BaseChannelObj{
 
   ChannelObj(std::string path, std::vector<BasePropertyObj> properties);
+
+  template<typename T> inline addData(std::vector<T*> data) override{
+    this->data = std::move(data);
+
+  }
 
   std::vector<uint8_t> getRawDataIndex() {
 
@@ -87,6 +90,7 @@ class ChannelObj : public BaseChannelObj{
 
     return b;
   }
+
 
   private:
   std::vector<T> data;
