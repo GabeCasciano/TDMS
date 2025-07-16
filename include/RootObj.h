@@ -15,8 +15,14 @@ namespace TDMS {
 class RootObj : TDMSObj{
 public:
   std::vector<GroupObj> groups;
+  std::vector<BasePropertyObj> properties;
 
-  RootObj(GroupObj groups, BasePropertyObj properties);
+  RootObj(std::string name);
+
+  inline void addGroupObj(GroupObj group){}
+  inline void addGroupObj(std::string name, std::vector<BasePropertyObj> properties){}
+  inline void addGroupObj(std::string name, std::vector<BasePropertyObj> properties, std::vector<BaseChannelObj> channels){}
+
 };
 
 } // namespace TDMS

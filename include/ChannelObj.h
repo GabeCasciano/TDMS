@@ -1,4 +1,5 @@
-#pragma once
+#ifndef CHANNEL_OBJ_H_
+#define CHANNEL_OBJ_H_
 
 #include <cstdint>
 #include <string>
@@ -10,10 +11,10 @@
 
 namespace TDMS {
 
-class BaseChannelObj : TDMSObj {
+class BaseChannelObj : public TDMSObj {
 public:
-  BaseChannelObj(std::string path, std::vector<std::unique_ptr<BasePropertyObj>> properties)
-      : TDMSObj(path, std::move(properties)) {
+  BaseChannelObj(std::string path, std::vector<BasePropertyObj> properties)
+      : TDMSObj(path, properties) {
     auto pb = TDMSObj::getPathBytes();
     bytes.insert(bytes.end(), pb.begin(), pb.end());
 
@@ -26,7 +27,7 @@ public:
     this->_addData(reinterpret_cast<void *>(data), data.size(), sizeof(T));    
   };
 
-  std::vector<uint8_t> getBytes() { return bytes; }
+  std::vector<char> getBytes() { return bytes; }
 
 protected:
   virtual std::vector<uint8_t> getRawDataIndex();
@@ -34,7 +35,7 @@ protected:
 };
 
 template <typename T>
-class ChannelObj : BaseChannelObj{
+class ChannelObj : public BaseChannelObj{
 
   ChannelObj(std::string path, std::vector<BasePropertyObj> properties);
 
@@ -92,3 +93,4 @@ class ChannelObj : BaseChannelObj{
 };
 
 } // namespace TDMS
+#endif

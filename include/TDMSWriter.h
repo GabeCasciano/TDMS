@@ -1,4 +1,5 @@
-#pragma once
+#ifndef TDMS_WRITER_H_
+#define TDMS_WRITER_H_
 
 #include <cstdint>
 #include <fstream>
@@ -40,3 +41,4 @@ private:
 };
 
 } // namespace TDMS
+#endif

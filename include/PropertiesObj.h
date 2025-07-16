@@ -1,6 +1,9 @@
-#pragma once
+#ifndef PROPRETIES_OBJ_H_
+#define PROPRETIES_OBJ_H_
 
+#include <concepts>
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -8,24 +11,101 @@
 
 namespace TDMS {
 
-class BasePropertyObj { 
+class BasePropertyObj {
 public:
-  std::string name;
+  std::string path;
   tdsDataType dType;
-  std::vector<uint8_t> bytes;
+  std::vector<char> bytes;
 
-  BasePropertyObj(std::string name);
-  ~BasePropertyObj();
-  virtual std::vector<uint8_t> getBytes() { return bytes; };
+  BasePropertyObj(std::string path, tdsDataType dType, std::vector<char> bytes)
+      : path(path), dType(dType), bytes(bytes) {}
+
+  inline std::string getPath() { return path; }
+  inline std::vector<char> getBytes() { return bytes; }
 };
 
-template<typename T> class PropertyObj : BasePropertyObj{
+template <typename T> class PropertyObj : public BasePropertyObj {
 public:
   T value;
 
-  PropertyObj(std::string name, T value);
-  std::vector<uint8_t> getBytes(){ return bytes;}
+  PropertyObj(std::string path, T value) {
 
+    if constexpr (std::same_as<T, uint8_t>)
+      dType = tdsTypeU8;
+    else if constexpr (std::same_as<T, int8_t>)
+      dType = tdsTypeI8;
+    else if constexpr (std::same_as<T, uint16_t>)
+      dType = tdsTypeU16;
+    else if constexpr (std::same_as<T, int16_t>)
+      dType = tdsTypeI16;
+    else if constexpr (std::same_as<T, uint32_t>)
+      dType = tdsTypeU32;
+    else if constexpr (std::same_as<T, int32_t>)
+      dType = tdsTypeI32;
+    else if constexpr (std::same_as<T, uint64_t>)
+      dType = tdsTypeU64;
+    else if constexpr (std::same_as<T, int64_t>)
+      dType = tdsTypeI64;
+    else if constexpr (std::same_as<T, float>)
+      dType = tdsTypeSingleFloat;
+    else if constexpr (std::same_as<T, double>)
+      dType = tdsTypeDoubleFloat;
+    else if constexpr (std::same_as<T, std::string>)
+      dType = tdsTypeString;
+
+    auto name_str = string_to_bytes(path);
+    // insert it
+    bytes.insert(bytes.end(), name_str.begin(), name_str.end());
+
+    // preapre the data type uint32_t
+    auto dt = std::bit_cast<std::array<char, sizeof(uint32_t)>>(dType);
+    // insert it
+    bytes.insert(bytes.end(), dt.begin(), dt.end());
+
+    switch (dType) {
+    case tdsDataType::tdsTypeBoolean:
+    case tdsDataType::tdsTypeI8:
+      bytes.push_back(*reinterpret_cast<char *>(value));
+      break;
+    case tdsDataType::tdsTypeU8:
+      bytes.push_back(*reinterpret_cast<char *>(value));
+      break;
+    case tdsDataType::tdsTypeI16: {
+      auto b = data_to_bytes<int16_t>(value);
+      bytes.insert(bytes.end(), b.begin(), b.end());
+    } break;
+    case tdsDataType::tdsTypeU16: {
+      auto b = data_to_bytes<uint16_t>(value);
+      bytes.insert(bytes.end(), b.begin(), b.end());
+    } break;
+    case tdsDataType::tdsTypeI32: {
+      auto b = data_to_bytes<int32_t>(value);
+      bytes.insert(bytes.end(), b.begin(), b.end());
+    } break;
+    case tdsDataType::tdsTypeU32: {
+      auto b = data_to_bytes<uint32_t>(value);
+      bytes.insert(bytes.end(), b.begin(), b.end());
+    } break;
+    case tdsDataType::tdsTypeSingleFloat:
+    case tdsDataType::tdsTypeSingleFloatWithUnit: {
+      auto b = data_to_bytes<float>(value);
+      bytes.insert(bytes.end(), b.begin(), b.end());
+    } break;
+    case tdsDataType::tdsTypeDoubleFloat:
+    case tdsDataType::tdsTypeDoubleFloatWithUnit: {
+      auto b = data_to_bytes<double>(value);
+      bytes.insert(bytes.end(), b.begin(), b.end());
+    } break;
+    case tdsDataType::tdsTypeString: {
+      auto str = string_to_bytes(value);
+      bytes.insert(bytes.end(), str.begin(), str.end());
+    } break;
+    default:
+      throw std::runtime_error(
+          "TDMS Writer Error, Unexpected datatype and value");
+    }
+  };
 };
 
 } // namespace TDMS
+#endif
